@@ -13,7 +13,7 @@ from passlib.apps import custom_app_context as pwd_context
 
 class ErrorHasher:
     digit_re = re.compile('\d')
-    hex_re = re.compile('["\'\s][0-9a-f]+["\'\s]')
+    string_re = re.compile(r'".*?(?<!\\)"|\'.*?(?<!\\)\'')
 
     def __init__(self, error):
         self.error = error
@@ -26,7 +26,7 @@ class ErrorHasher:
             'project': self.error['project'],
             'language': self.error['language'],
             'type': self.error['type'],
-            'message': self.digit_re.sub('', self.hex_re.sub('', self.error['message']))
+            'message': self.digit_re.sub('', self.string_re.sub('', self.error['message']))
         }
 
 
