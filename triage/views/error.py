@@ -4,6 +4,7 @@ from pyramid.httpexceptions import HTTPFound, HTTPNotFound
 
 from triage.models import Error, Comment, Tag, User, ErrorInstance
 from time import time
+from os import path
 
 import logging
 
@@ -69,7 +70,8 @@ def get_errors(request, fetch_recent=False):
 def error_list(request):
     return {
         'selected_project': get_selected_project(request),
-        'errors': get_errors(request)
+        'errors': get_errors(request),
+        'basename': path.basename
     }
 
 
@@ -102,7 +104,8 @@ def error_page(request):
         'show': show,
         'order_by': order_by,
         'direction': direction,
-        'counts': counts
+        'counts': counts,
+        'basename': path.basename
     }
 
 

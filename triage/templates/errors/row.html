@@ -17,7 +17,7 @@
 			{% endif %}
 		</div>
 		<div class="detail">
-			<span class="detail-type">{{ error.type }}</span>
+			<span class="detail-type">{{ error.type }} in {{ basename(error.file) }} on line {{ error.line }}</span>
 			<span class="detail-tags">{% for tag in error.tags %}<span class="label label-{{ tag }}">{{ tag }}</span>{% endfor %}</span>
 		</div>
 		{% endblock %}
