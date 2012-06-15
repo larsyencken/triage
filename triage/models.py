@@ -132,7 +132,7 @@ class ErrorQuerySet(QuerySet):
 
         qObjects = Q()
         for keyword in search_keywords:
-            qObjects = qObjects | Q(message__icontains=keyword) | Q(type__icontains=keyword) | Q(tags__icontains=keyword)
+            qObjects = qObjects | Q(keywords__icontains=keyword) | Q(type__icontains=keyword) | Q(tags__icontains=keyword)
 
         return self.filter(qObjects)
 
@@ -181,7 +181,7 @@ class Error(Document):
         error = cls.create_from_msg(msg)
         error.validate()
 
-        keywords = list(set(keyword_re.findall(msg['message'])))
+        keywords = list(set(keyword_re.findall(msg['message'].lower())))
 
         insert_doc = {
                 'hash': msg['hash'],
