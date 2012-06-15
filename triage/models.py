@@ -12,7 +12,7 @@ from passlib.apps import custom_app_context as pwd_context
 
 
 class ErrorHasher:
-    digit_re = re.compile('\d')
+    digit_re = re.compile('\d+')
     string_re = re.compile(r'".*?(?<!\\)"|\'.*?(?<!\\)\'')
 
     def __init__(self, error):
@@ -102,6 +102,28 @@ class Comment(EmbeddedDocument):
     created = IntField(required=True)
 
 
+class ErrorInstance(Document):
+    meta = {
+        'allow_inheritance': False,
+        'ordering': ['-timestamp'],
+        'indexes': ['hash', 'timestamp', ('hash', '-timestamp')]
+    }
+
+    hash = StringField(required=True)
+    project = StringField(required=True)
+    language = StringField(required=True)
+    message = StringField(required=True)
+    type = StringField(required=True)
+    line = IntField()
+    file = StringField()
+    context = DictField()
+    backtrace = ListField(DictField())
+    timestamp = FloatField()
+
+    @classmethod
+    def from_raw(cls, raw):
+        return cls(**raw)
+
 
 class ErrorQuerySet(QuerySet):
 
@@ -124,16 +146,16 @@ class ErrorQuerySet(QuerySet):
         self.filter(project=selected_project)
         return self.filter( hiddenby__exists=False)
 
-
+keyword_re = re.compile(r'\w+')
 class Error(Document):
     meta = {
         'queryset_class': ErrorQuerySet,
         'allow_inheritance': False,
         'ordering': ['-timelatest'],
-        'indexes': ['-count', '+count', '-timelatest', '+timelatest', '-comments', '+comments', '+hash']
+        'indexes': ['count', 'timelatest', 'comments', 'hash', 'keywords']
     }
 
-    hash = StringField(required=True)
+    hash = StringField(required=True, unique=True)
     project = StringField(required=True)
     language = StringField(required=True)
     message = StringField(required=True)
@@ -143,9 +165,10 @@ class Error(Document):
     context = DictField()
     backtrace = ListField(DictField())
     timelatest = FloatField()
-    instances = ListField(DictField())
+    timefirst = FloatField()
     count = IntField()
     claimedby = ReferenceField(User)
+    keywords = ListField(StringField())
     tags = ListField(StringField(max_length=30))
     comments = ListField(EmbeddedDocumentField(Comment))
     seenby = ListField(ReferenceField(User))
@@ -153,17 +176,30 @@ class Error(Document):
 
     @classmethod
     def validate_and_upsert(cls, msg):
-        msg['hash'] = ErrorHasher(msg).get_hash()
-        if 'timestamp' in msg:
-            msg['timelatest'] = msg['timestamp']
-        else:
-            msg['timelatest'] = int(time())
+        msg['timelatest'] = msg['timestamp']
 
         error = cls.create_from_msg(msg)
         error.validate()
 
-        collection = error._get_collection() #probs a hack
-        collection.update({'hash':msg['hash']}, {
+        keywords = list(set(keyword_re.findall(msg['message'])))
+
+        insert_doc = {
+                'hash': msg['hash'],
+                'project': msg['project'],
+                'language': msg['language'],
+                'message': msg['message'],
+                'type': msg['type'],
+                'line': msg['line'],
+                'file': msg['file'],
+                'context': msg['context'],
+                'backtrace': msg['backtrace'],
+                'timelatest': msg['timelatest'],
+                'timefirst': msg['timelatest'],
+                'keywords': keywords,
+                'count': 1
+        }
+
+        update_doc = {
             '$set': {
                 'hash': msg['hash'],
                 'project': msg['project'],
@@ -182,13 +218,19 @@ class Error(Document):
             '$inc': {
                 'count': 1
             },
-            '$push': {
-                'instances': {
-                    'timecreated': msg['timelatest'],
-                    'message': msg['message']
-                }
+            '$addToSet': { 
+                'keywords': {
+                    '$each' : keywords 
+                } 
             }
-        }, upsert=True)
+        }
+
+        collection = cls.objects._collection #probs a hack
+
+        # Update fails if document not found
+        collection.update({'hash':msg['hash']}, update_doc)
+        # insert fails if unique index violated
+        collection.insert(insert_doc)
 
     @classmethod
     def from_msg(cls, msg):
@@ -210,23 +252,10 @@ class Error(Document):
         return error
 
     def update_from_msg(self, msg):
-        now = int(time())
-        instance = {
-            'timecreated': now,
-            'message': msg['message']
-        }
         self.message = msg['message']
-        self.timelatest = now
+        self.timelatest = msg['timestamp']
         self.count = self.count + 1
         self.hiddenby = None
-        self.instances.append(instance)
-
-
-
-
-    @property
-    def timefirst(self):
-        return self.instances[0]['timecreated']
 
     def get_row_classes(self, user):
         classes = []
