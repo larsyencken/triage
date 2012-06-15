@@ -120,11 +120,14 @@
 
 <div class="pane-view pane-similar">
 	<h3>Similar Errors</h3>
-	<ul class="related-errors">
-		{% for e in error.instances[:10] %}
-			<li>{{ date(e.timecreated) }} - {{e.message}}</li>
+	<table class="table table-striped table-condensed related-errors">
+		{% for e in instances %}
+			<tr>
+				<td>{{ date(e.timestamp) }}</td>
+				<td>{{e.message}}</td>
+			</tr>
 		{% endfor %}
-	</ul>
+	</table>
 </div>
 
 

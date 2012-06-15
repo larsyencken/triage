@@ -2,7 +2,7 @@ from pyramid.view import view_config
 from pyramid.renderers import render_to_response
 from pyramid.httpexceptions import HTTPFound, HTTPNotFound
 
-from triage.models import Error, Comment, Tag, User
+from triage.models import Error, Comment, Tag, User, ErrorInstance
 from time import time
 
 import logging
@@ -118,18 +118,20 @@ def view(request):
 
     error_id = request.matchdict['id']
     try:
-        error = Error.objects(project=selected_project['id']).with_id(error_id)
+        error = Error.objects().with_id(error_id)
     except:
         return HTTPNotFound()
-
     if request.user not in error.seenby:
         error.seenby.append(request.user)
         error.save()
 
+    instances = ErrorInstance.objects(hash=error.hash)[:10]
+
     params = {
         'error': error,
         'selected_project': selected_project,
-        'available_projects': available_projects
+        'available_projects': available_projects,
+        'instances': instances
     }
 
     try:
