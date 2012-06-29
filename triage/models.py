@@ -264,3 +264,50 @@ class Error(Document):
         self.hiddenby and classes.append('hidden')
         self.claimedby == user and classes.append('mine')
         return ' '.join(classes)
+
+    def get_occurrence(self, granularity, window):
+        """
+        Get occurrence counts, grouped by the granularity in seconds, that
+        that occurred no more than window seconds in the past.
+        """
+        raise Exception("needs updating to new model")
+        earliest = time.time() - window
+        grouping, = self._collection.group(
+                    [],
+                    {'_id': self._id},
+                    {'by_time': {}},
+                    """
+        function(obj, prev) {
+            var is = obj.instances;
+            var by_time = prev.by_time;
+            for (var i = 0; i < is.length; i++) {
+                ts = is[i].timecreated;
+                ts_norm = ts - ts %% 3600;
+                if (ts_norm > %d) {
+                    by_time[ts_norm] = (by_time.hasOwnProperty(ts_norm) ? by_time[ts_norm] + 1 : 1);
+                }
+            }
+        }
+        """ % earliest,
+        )
+        by_time = grouping['by_time']
+        by_time = {int(k): int(v) for (k, v) in by_time.iteritems()}
+
+        # pad out zeros in values
+        now = int(time())
+        now = now - now % granularity
+        t = now
+        while t > now - window:
+            by_time.setdefault(t, 0)
+            t -= granularity
+
+        return sorted(by_time.items())
+
+    def get_hourly_occurrence(self, window=3*24*3600):
+        return self.get_occurrence(3600, window)
+
+    def get_daily_occurrence(self, window=28*24*3600):
+        return self.get_occurrence(24*3600, window)
+
+    def get_weekly_occurrence(self, window=26*7*24*3600):
+        return self.get_occurrence(7*24*3600, window)
